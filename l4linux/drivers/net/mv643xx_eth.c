@@ -1834,6 +1834,9 @@ static int rxq_init(struct mv643xx_eth_private *mp, int index)
 	struct rx_desc *rx_desc;
 	int size;
 	int i;
+    
+    mp->rx_desc_sram_addr = 0x10000000;
+    mp->rx_desc_sram_size = 0x000ffff;
 
 	rxq->index = index;
 
@@ -1945,6 +1948,9 @@ static int txq_init(struct mv643xx_eth_private *mp, int index)
 	struct tx_desc *tx_desc;
 	int size;
 	int i;
+
+    mp->tx_desc_sram_addr = 0x10010000;
+    mp->tx_desc_sram_size = 0x000ffff;
 
 	txq->index = index;
 
