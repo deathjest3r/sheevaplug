@@ -228,10 +228,6 @@ static L4X_DEVICE_CB(dmamem_cb)
 #define KIRKWOOD_REGS_VIRT_BASE		0xfed00000
 
 #define GE00_PHYS_BASE		        (KIRKWOOD_REGS_PHYS_BASE | 0x70000)
-#define BRIDGE_VIRT_BASE	        (KIRKWOOD_REGS_VIRT_BASE | 0x20000)
-
-#define DDR_VIRT_BASE	            (KIRKWOOD_REGS_VIRT_BASE | 0x00000)
-#define DDR_WINDOW_CPU_BASE     	(DDR_VIRT_BASE | 0x1500)
 
 struct mbus_dram_target_info kirkwood_mbus_dram_info;
 
@@ -335,10 +331,12 @@ static struct mv643xx_eth_platform_data sheevaplug_ge00_data = {
 
 static void register_platform_callbacks(void)
 {
+
 	l4x_register_platform_device_callback("compactflash", realview_device_cb_pata);
 	l4x_register_platform_device_callback("smsc911x",     realview_device_cb_smsc);
 	l4x_register_platform_device_callback("aaci",         aaci_cb);
 	l4x_register_platform_device_callback("dmamem",       dmamem_cb);
+    //l4x_register_platform_device_callback("mv643xx",      kirkwood_device_cb_mv643xx);
 
     kirkwood_ge00_init(&sheevaplug_ge00_data);
     //--- End Sheevaplug Code (Julian)---
