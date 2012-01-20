@@ -387,7 +387,7 @@ void __init kirkwood_setup_cpu_mbus(void)
 
 #define GE00_PHYS_BASE		        (KIRKWOOD_REGS_PHYS_BASE | 0x70000)
 
-struct mbus_dram_target_info kirkwood_mbus_dram_info;
+//struct mbus_dram_target_info kirkwood_mbus_dram_info;
 
 static __init void ge_complete(
 	struct mv643xx_eth_shared_platform_data *orion_ge_shared_data,
