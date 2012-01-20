@@ -58,6 +58,7 @@
 #include <linux/inet_lro.h>
 #include <linux/slab.h>
 #include <asm/system.h>
+#include <asm-generic/cacheflush.h>
 
 static char mv643xx_eth_driver_name[] = "mv643xx_eth";
 static char mv643xx_eth_driver_version[] = "1.4";
@@ -444,11 +445,15 @@ static inline u32 rdlp(struct mv643xx_eth_private *mp, int offset)
 static inline void wrl(struct mv643xx_eth_private *mp, int offset, u32 data)
 {
 	writel(data, mp->shared->base + offset);
+	// julian
+	flush_cache_all();
 }
 
 static inline void wrlp(struct mv643xx_eth_private *mp, int offset, u32 data)
 {
 	writel(data, mp->base + offset);
+	// julian
+	flush_cache_all();
 }
 
 
@@ -888,6 +893,7 @@ static netdev_tx_t mv643xx_eth_xmit(struct sk_buff *skb, struct net_device *dev)
 		txq->tx_packets++;
 
 		entries_left = txq->tx_ring_size - txq->tx_desc_count;
+	
 		if (entries_left < MAX_SKB_FRAGS + 1)
 			netif_tx_stop_queue(nq);
 	}
@@ -1835,6 +1841,9 @@ static int rxq_init(struct mv643xx_eth_private *mp, int index)
 	int size;
 	int i;
 
+	mp->rx_desc_sram_addr = 0x10000000;
+	mp->rx_desc_sram_size = 0x000ffff;
+
 	rxq->index = index;
 
 	rxq->rx_ring_size = mp->rx_ring_size;
@@ -1946,6 +1955,9 @@ static int txq_init(struct mv643xx_eth_private *mp, int index)
 	int size;
 	int i;
 
+	mp->tx_desc_sram_addr = 0x10010000;
+	mp->tx_desc_sram_size = 0x000ffff;
+
 	txq->index = index;
 
 	txq->tx_ring_size = mp->tx_ring_size;
@@ -2053,6 +2065,8 @@ static irqreturn_t mv643xx_eth_irq(int irq, void *dev_id)
 
 	if (unlikely(!mv643xx_eth_collect_events(mp)))
 		return IRQ_NONE;
+	
+	printk("irq!\n");
 
 	wrlp(mp, INT_MASK, 0);
 	napi_schedule(&mp->napi);
@@ -2497,7 +2511,7 @@ static void mv643xx_eth_netpoll(struct net_device *dev)
 
 	wrlp(mp, INT_MASK, 0x00000000);
 	rdlp(mp, INT_MASK);
-
+	
 	mv643xx_eth_irq(dev->irq, dev);
 
 	wrlp(mp, INT_MASK, mp->int_mask);
