@@ -2458,6 +2458,8 @@ config MV643XX_ETH
 	depends on (MV64X60 || PPC32 || PLAT_ORION || L4) && INET
 	select INET_LRO
 	select PHYLIB
+	select CLKSRC_MMIO
+	select HAVE_SCHED_CLOCK
 	help
 	  This driver supports the gigabit ethernet MACs in the
 	  Marvell Discovery PPC/MIPS chipset family (MV643XX) and

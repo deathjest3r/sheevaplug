@@ -219,12 +219,16 @@ orion_time_init(u32 _bridge_base, u32 _bridge_timer1_clr_mask,
 	 */
 	setup_sched_clock(tclk);
 
+	printk("wrting to timer registers\n");
 	/*
 	 * Setup free-running clocksource timer (interrupts
 	 * disabled).
 	 */
 	writel(0xffffffff, timer_base + TIMER0_VAL_OFF);
 	writel(0xffffffff, timer_base + TIMER0_RELOAD_OFF);
+
+	printk("done writing\n");
+
 	u = readl(bridge_base + BRIDGE_MASK_OFF);
 	writel(u & ~BRIDGE_INT_TIMER0, bridge_base + BRIDGE_MASK_OFF);
 	u = readl(timer_base + TIMER_CTRL_OFF);

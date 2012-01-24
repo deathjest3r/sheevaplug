@@ -356,6 +356,7 @@ static void __init kirkwood_timer_init(void)
 {
 	kirkwood_tclk = kirkwood_find_tclk();
 
+	printk("Kirkwood_clk found\n");
 	orion_time_init(BRIDGE_VIRT_BASE, BRIDGE_INT_TIMER1_CLR,
 			IRQ_KIRKWOOD_BRIDGE, kirkwood_tclk);
 }
@@ -374,7 +375,7 @@ static void register_platform_callbacks(void)
 	//l4x_register_platform_device_callback("mv643xx",      kirkwood_device_cb_mv643xx);
 
 	//Init clock
-	kirkwood_timer_init();
+	//kirkwood_timer_init();
 	// Init network
 	kirkwood_ge00_init(&sheevaplug_ge00_data);
 	//--- End Sheevaplug Code (Julian)---
