@@ -222,14 +222,29 @@ static L4X_DEVICE_CB(dmamem_cb)
 }
 
 //--- Start Sheevaplug Code (Julian)
+#include <linux/timer.h>
+#include <linux/clockchips.h>
+#include <asm/sched_clock.h>
+#include <linux/irq.h>
 #include <linux/mv643xx_eth.h>
+
+#include "time.c"
 
 #define KIRKWOOD_REGS_PHYS_BASE		0xf1000000
 #define KIRKWOOD_REGS_VIRT_BASE		0xfed00000
 
+#define BRIDGE_INT_TIMER1_CLR		(~0x0004)
+#define IRQ_KIRKWOOD_BRIDGE		1
+
+#define BRIDGE_VIRT_BASE		(KIRKWOOD_REGS_VIRT_BASE | 0x20000)
 #define GE00_PHYS_BASE		        (KIRKWOOD_REGS_PHYS_BASE | 0x70000)
 
+
+
 struct mbus_dram_target_info kirkwood_mbus_dram_info;
+struct mv643xx_eth_shared_platform_data orion_ge00_shared_data;
+
+int kirkwood_tclk;
 
 static __init void ge_complete(
 	struct mv643xx_eth_shared_platform_data *orion_ge_shared_data,
@@ -249,8 +264,6 @@ static __init void ge_complete(
 	platform_device_register(orion_ge_shared);
 	platform_device_register(orion_ge);
 }
-
-struct mv643xx_eth_shared_platform_data orion_ge00_shared_data;
 
 static struct resource orion_ge00_shared_resources[] = {
 	{
@@ -322,7 +335,29 @@ void __init orion_ge00_init(struct mv643xx_eth_platform_data *eth_data,
 void __init kirkwood_ge00_init(struct mv643xx_eth_platform_data *eth_data)
 {
 	orion_ge00_init(eth_data, &kirkwood_mbus_dram_info,
-			GE00_PHYS_BASE, 11, 46, 200000000);
+			GE00_PHYS_BASE, 11, 46, kirkwood_tclk);
+}
+
+static int __init kirkwood_find_tclk(void)
+{
+	/*u32 dev, rev;
+
+	kirkwood_pcie_id(&dev, &rev);
+
+	if (dev == MV88F6281_DEV_ID || dev == MV88F6282_DEV_ID)
+		if (((readl(SAMPLE_AT_RESET) >> 21) & 1) == 0)
+			return 200000000;*/
+
+	//return 166666667;
+	return 200000000;
+}
+
+static void __init kirkwood_timer_init(void)
+{
+	kirkwood_tclk = kirkwood_find_tclk();
+
+	orion_time_init(BRIDGE_VIRT_BASE, BRIDGE_INT_TIMER1_CLR,
+			IRQ_KIRKWOOD_BRIDGE, kirkwood_tclk);
 }
 
 static struct mv643xx_eth_platform_data sheevaplug_ge00_data = {
@@ -336,10 +371,13 @@ static void register_platform_callbacks(void)
 	l4x_register_platform_device_callback("smsc911x",     realview_device_cb_smsc);
 	l4x_register_platform_device_callback("aaci",         aaci_cb);
 	l4x_register_platform_device_callback("dmamem",       dmamem_cb);
-    //l4x_register_platform_device_callback("mv643xx",      kirkwood_device_cb_mv643xx);
+	//l4x_register_platform_device_callback("mv643xx",      kirkwood_device_cb_mv643xx);
 
-    kirkwood_ge00_init(&sheevaplug_ge00_data);
-    //--- End Sheevaplug Code (Julian)---
+	//Init clock
+	kirkwood_timer_init();
+	// Init network
+	kirkwood_ge00_init(&sheevaplug_ge00_data);
+	//--- End Sheevaplug Code (Julian)---
 }
 
 static void
