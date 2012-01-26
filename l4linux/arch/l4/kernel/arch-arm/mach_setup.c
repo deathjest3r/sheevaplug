@@ -231,6 +231,8 @@ static L4X_DEVICE_CB(dmamem_cb)
 
 struct mbus_dram_target_info kirkwood_mbus_dram_info;
 
+int kirkwood_tclk = 200000000;
+
 static __init void ge_complete(
 	struct mv643xx_eth_shared_platform_data *orion_ge_shared_data,
 	struct mbus_dram_target_info *mbus_dram_info, int tclk,
@@ -322,11 +324,39 @@ void __init orion_ge00_init(struct mv643xx_eth_platform_data *eth_data,
 void __init kirkwood_ge00_init(struct mv643xx_eth_platform_data *eth_data)
 {
 	orion_ge00_init(eth_data, &kirkwood_mbus_dram_info,
-			GE00_PHYS_BASE, 11, 46, 200000000);
+			GE00_PHYS_BASE, 11, 46, kirkwood_tclk);
 }
 
 static struct mv643xx_eth_platform_data sheevaplug_ge00_data = {
     .phy_addr	= MV643XX_ETH_PHY_ADDR(0),
+};
+
+// Timer
+#include <asm/mach/time.h>
+
+
+#include "mmio.c"
+#include "time.c"
+
+#define TIMER_VIRT_BASE		(BRIDGE_VIRT_BASE | 0x0300)
+#define BRIDGE_VIRT_BASE	(KIRKWOOD_REGS_VIRT_BASE | 0x20000)
+#define BRIDGE_INT_TIMER1_CLR	(~0x0004)
+#define IRQ_KIRKWOOD_BRIDGE	1
+
+void __init kirkwood_init_early(void)
+{
+	orion_time_set_base(TIMER_VIRT_BASE);
+}
+
+static void __init kirkwood_timer_init(void)
+{
+	orion_time_init(BRIDGE_VIRT_BASE, BRIDGE_INT_TIMER1_CLR,
+			IRQ_KIRKWOOD_BRIDGE, kirkwood_tclk);
+	printk("kirkwood_timer_init\n");
+}
+
+struct sys_timer kirkwood_timer = {
+	.init = kirkwood_timer_init,
 };
 
 static void register_platform_callbacks(void)
