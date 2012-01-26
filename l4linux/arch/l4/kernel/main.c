@@ -2119,6 +2119,8 @@ static int fprov_load_initrd(const char *filename,
 		l4_sleep(20000);
 	}
 
+	printk("fprov_load_initrd\n");
+
 	LOG_flush();
 	return 0;
 }
@@ -2188,6 +2190,8 @@ void l4x_load_initrd(char *command_line)
 		           initrd_start, initrd_end,
 		           (initrd_end - initrd_start) >> 10);
 	}
+
+	LOG_printf("l4x_load_initrd\n");
 }
 #endif /* CONFIG_BLK_DEV_INITRD */
 

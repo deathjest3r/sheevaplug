@@ -332,9 +332,6 @@ static struct mv643xx_eth_platform_data sheevaplug_ge00_data = {
 };
 
 // Timer
-#include <asm/mach/time.h>
-
-
 #include "mmio.c"
 #include "time.c"
 
@@ -355,9 +352,9 @@ static void __init kirkwood_timer_init(void)
 	printk("kirkwood_timer_init\n");
 }
 
-struct sys_timer kirkwood_timer = {
+/*struct sys_timer kirkwood_timer = {
 	.init = kirkwood_timer_init,
-};
+};*/
 
 static void register_platform_callbacks(void)
 {
@@ -368,7 +365,9 @@ static void register_platform_callbacks(void)
 	l4x_register_platform_device_callback("dmamem",       dmamem_cb);
     //l4x_register_platform_device_callback("mv643xx",      kirkwood_device_cb_mv643xx);
 
-    kirkwood_ge00_init(&sheevaplug_ge00_data);
+	kirkwood_init_early();
+	kirkwood_timer_init();
+	kirkwood_ge00_init(&sheevaplug_ge00_data);
     //--- End Sheevaplug Code (Julian)---
 }
 

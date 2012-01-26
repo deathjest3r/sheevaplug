@@ -17,25 +17,26 @@
 #include <linux/clockchips.h>
 #include <linux/interrupt.h>
 #include <linux/irq.h>
-#include <asm/sched_clock.h>
+
+#include "sched_clock.h"
 
 /*
  * MBus bridge block registers.
  */
-#define BRIDGE_CAUSE_OFF	0x0110
-#define BRIDGE_MASK_OFF		0x0114
-#define  BRIDGE_INT_TIMER0	 0x0002
-#define  BRIDGE_INT_TIMER1	 0x0004
+#define  BRIDGE_CAUSE_OFF	0x0110
+#define  BRIDGE_MASK_OFF	0x0114
+#define  BRIDGE_INT_TIMER0	0x0002
+#define  BRIDGE_INT_TIMER1	0x0004
 
 
 /*
  * Timer block registers.
  */
 #define TIMER_CTRL_OFF		0x0000
-#define  TIMER0_EN		 0x0001
-#define  TIMER0_RELOAD_EN	 0x0002
-#define  TIMER1_EN		 0x0004
-#define  TIMER1_RELOAD_EN	 0x0008
+#define TIMER0_EN		0x0001
+#define TIMER0_RELOAD_EN	0x0002
+#define TIMER1_EN		0x0004
+#define TIMER1_RELOAD_EN	0x0008
 #define TIMER0_RELOAD_OFF	0x0010
 #define TIMER0_VAL_OFF		0x0014
 #define TIMER1_RELOAD_OFF	0x0018
@@ -64,19 +65,22 @@ static DEFINE_CLOCK_DATA(cd);
 
 unsigned long long notrace sched_clock(void)
 {
-	u32 cyc = ~readl(timer_base + TIMER0_VAL_OFF);
-	return cyc_to_sched_clock(&cd, cyc, (u32)~0);
+	//u32 cyc = ~readl(timer_base + TIMER0_VAL_OFF);
+	//printk("sched_clock\n");
+	//return cyc_to_sched_clock(&cd, cyc, (u32)~0);
 }
 
 
 static void notrace orion_update_sched_clock(void)
 {
 	u32 cyc = ~readl(timer_base + TIMER0_VAL_OFF);
+	printk("orion_update_sched_clock\n");
 	update_sched_clock(&cd, cyc, (u32)~0);
 }
 
 static void __init setup_sched_clock(unsigned long tclk)
 {
+	printk("setup_sched_clock\n");
 	init_sched_clock(&cd, orion_update_sched_clock, 32, tclk);
 }
 
@@ -88,6 +92,8 @@ orion_clkevt_next_event(unsigned long delta, struct clock_event_device *dev)
 {
 	unsigned long flags;
 	u32 u;
+
+	printk("orion_clkevt_next_event\n");
 
 	if (delta == 0)
 		return -ETIME;
@@ -125,6 +131,8 @@ orion_clkevt_mode(enum clock_event_mode mode, struct clock_event_device *dev)
 {
 	unsigned long flags;
 	u32 u;
+
+	printk("orion_clkevt_mode\n");
 
 	local_irq_save(flags);
 	if (mode == CLOCK_EVT_MODE_PERIODIC) {
@@ -185,6 +193,8 @@ static irqreturn_t orion_timer_interrupt(int irq, void *dev_id)
 	writel(bridge_timer1_clr_mask, bridge_base + BRIDGE_CAUSE_OFF);
 	orion_clkevt.event_handler(&orion_clkevt);
 
+	printk("orion_timer_interrupt\n");
+	
 	return IRQ_HANDLED;
 }
 
@@ -198,6 +208,7 @@ void __init
 orion_time_set_base(u32 _timer_base)
 {
 	timer_base = (void __iomem *)_timer_base;
+	printk("orion_time_set_base\n");
 }
 
 void __init
@@ -217,7 +228,7 @@ orion_time_init(u32 _bridge_base, u32 _bridge_timer1_clr_mask,
 	/*
 	 * Set scale and timer for sched_clock.
 	 */
-	//setup_sched_clock(tclk);
+	setup_sched_clock(tclk);
 
 	/*
 	 * Setup free-running clocksource timer (interrupts
