@@ -224,10 +224,38 @@ static L4X_DEVICE_CB(dmamem_cb)
 //--- Start Sheevaplug Code (Julian)
 #include <linux/mv643xx_eth.h>
 
-#define KIRKWOOD_REGS_PHYS_BASE		0xf1000000
-#define KIRKWOOD_REGS_VIRT_BASE		0xfed00000
+#define KIRKWOOD_REGS_PHYS_BASE	0xf1000000
+//#define KIRKWOOD_REGS_VIRT_BASE	0xfed00000
+#define KIRKWOOD_REGS_VIRT_BASE ioremap(0xfed00000, 0x0fffff);
 
-#define GE00_PHYS_BASE		        (KIRKWOOD_REGS_PHYS_BASE | 0x70000)
+#define BRIDGE_VIRT_BASE	(KIRKWOOD_REGS_VIRT_BASE | 0x20000)
+#define PCIE_VIRT_BASE		(KIRKWOOD_REGS_VIRT_BASE | 0x40000)
+#define GE00_PHYS_BASE		(KIRKWOOD_REGS_PHYS_BASE | 0x70000)
+#define SATA_PHYS_BASE		(KIRKWOOD_REGS_PHYS_BASE | 0x80000)
+#define SATA_VIRT_BASE		(KIRKWOOD_REGS_VIRT_BASE | 0x80000)
+
+#define SATA0_IF_CTRL		(SATA_VIRT_BASE | 0x2050)
+#define SATA0_PHY_MODE_2	(SATA_VIRT_BASE | 0x2330)
+#define SATA1_IF_CTRL		(SATA_VIRT_BASE | 0x4050)
+#define SATA1_PHY_MODE_2	(SATA_VIRT_BASE | 0x4330)
+
+#define PCIE_VIRT_BASE		(KIRKWOOD_REGS_VIRT_BASE | 0x40000)
+#define PCIE_LINK_CTRL		(PCIE_VIRT_BASE | 0x70)
+#define PCIE_STATUS		(PCIE_VIRT_BASE | 0x1a04)
+
+#define PCIE1_VIRT_BASE		(KIRKWOOD_REGS_VIRT_BASE | 0x44000)
+#define PCIE1_LINK_CTRL		(PCIE1_VIRT_BASE | 0x70)
+#define PCIE1_STATUS		(PCIE1_VIRT_BASE | 0x1a04)
+
+#define CLOCK_GATING_CTRL	(BRIDGE_VIRT_BASE | 0x11c)
+
+#define CGC_GE0			(1 << 0)
+#define CGC_PEX0		(1 << 2)
+#define CGC_DUNIT		(1 << 6)
+#define CGC_SATA0		(1 << 14)
+#define CGC_SATA1		(1 << 15)
+#define CGC_PEX1		(1 << 18)
+#define CGC_RESERVED		(0x6 << 21)
 
 struct mbus_dram_target_info kirkwood_mbus_dram_info;
 
@@ -248,6 +276,9 @@ static __init void ge_complete(
 
 	platform_device_register(orion_ge_shared);
 	platform_device_register(orion_ge);
+	
+	dmabounce_register_dev(&orion_ge->dev, 64, 4096);
+	dmabounce_register_dev(&orion_ge_shared->dev, 64, 4096);
 }
 
 struct mv643xx_eth_shared_platform_data orion_ge00_shared_data;
@@ -319,8 +350,12 @@ void __init orion_ge00_init(struct mv643xx_eth_platform_data *eth_data,
 		    eth_data, &orion_ge00);
 }
 
+unsigned int kirkwood_clk_ctrl = CGC_DUNIT | CGC_RESERVED;
+
 void __init kirkwood_ge00_init(struct mv643xx_eth_platform_data *eth_data)
 {
+	kirkwood_clk_ctrl |= CGC_GE0;
+
 	orion_ge00_init(eth_data, &kirkwood_mbus_dram_info,
 			GE00_PHYS_BASE, 11, 46, 200000000);
 }
@@ -329,17 +364,60 @@ static struct mv643xx_eth_platform_data sheevaplug_ge00_data = {
     .phy_addr	= MV643XX_ETH_PHY_ADDR(0),
 };
 
+static int __init kirkwood_clock_gate(void)
+{
+	unsigned int curr = readl(CLOCK_GATING_CTRL);
+
+	//kirkwood_pcie_id(&dev, &rev);
+	//printk(KERN_DEBUG "Gating clock of unused units\n");
+	//printk(KERN_DEBUG "before: 0x%08x\n", curr);
+
+	/* Make sure those units are accessible */
+	writel(curr | CGC_SATA0 | CGC_SATA1 | CGC_PEX0 | CGC_PEX1, CLOCK_GATING_CTRL);
+
+	/* For SATA: first shutdown the phy */
+	if (!(kirkwood_clk_ctrl & CGC_SATA0)) {
+		/* Disable PLL and IVREF */
+		writel(readl(SATA0_PHY_MODE_2) & ~0xf, SATA0_PHY_MODE_2);
+		/* Disable PHY */
+		writel(readl(SATA0_IF_CTRL) | 0x200, SATA0_IF_CTRL);
+	}
+	if (!(kirkwood_clk_ctrl & CGC_SATA1)) {
+		/* Disable PLL and IVREF */
+		writel(readl(SATA1_PHY_MODE_2) & ~0xf, SATA1_PHY_MODE_2);
+		/* Disable PHY */
+		writel(readl(SATA1_IF_CTRL) | 0x200, SATA1_IF_CTRL);
+	}
+	
+	/* For PCIe: first shutdown the phy */
+	if (!(kirkwood_clk_ctrl & CGC_PEX0)) {
+		writel(readl(PCIE_LINK_CTRL) | 0x10, PCIE_LINK_CTRL);
+		while (1)
+			if (readl(PCIE_STATUS) & 0x1)
+				break;
+		writel(readl(PCIE_LINK_CTRL) & ~0x10, PCIE_LINK_CTRL);
+	}
+
+	kirkwood_clk_ctrl |= CGC_PEX1;
+
+	/* Now gate clock the required units */
+	writel(kirkwood_clk_ctrl, CLOCK_GATING_CTRL);
+	printk(KERN_DEBUG " after: 0x%08x\n", readl(CLOCK_GATING_CTRL));
+
+	return 0;
+}
+
 static void register_platform_callbacks(void)
 {
-
 	l4x_register_platform_device_callback("compactflash", realview_device_cb_pata);
 	l4x_register_platform_device_callback("smsc911x",     realview_device_cb_smsc);
 	l4x_register_platform_device_callback("aaci",         aaci_cb);
 	l4x_register_platform_device_callback("dmamem",       dmamem_cb);
-    //l4x_register_platform_device_callback("mv643xx",      kirkwood_device_cb_mv643xx);
+	//l4x_register_platform_device_callback("mv643xx",      kirkwood_device_cb_mv643xx);
 
-    kirkwood_ge00_init(&sheevaplug_ge00_data);
-    //--- End Sheevaplug Code (Julian)---
+	kirkwood_ge00_init(&sheevaplug_ge00_data);	
+	kirkwood_clock_gate();
+	//--- End Sheevaplug Code (Julian)---
 }
 
 static void

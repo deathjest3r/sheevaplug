@@ -8,6 +8,12 @@ hw-root
     new-res Irq(11);
   }
 
+  VIR => new Device()
+  {
+    .hid = "virt";
+    new-res Mmio(0xFED00000 .. 0xFEDFFFFF);
+  }
+
   DMA => new Device()
   {
     .hid = "dmamem";
@@ -19,4 +25,5 @@ l4lx => new System_bus()
 {
   DMA => wrap(hw-root.DMA);
   NIC => wrap(hw-root.NIC);
+  VIR => wrap(hw-root.VIR);
 }
