@@ -335,19 +335,19 @@ static struct mv643xx_eth_platform_data sheevaplug_ge00_data = {
 #include "mmio.c"
 #include "time.c"
 
-#define TIMER_VIRT_BASE		(BRIDGE_VIRT_BASE | 0x0300)
 #define BRIDGE_VIRT_BASE	(KIRKWOOD_REGS_VIRT_BASE | 0x20000)
+#define TIMER_VIRT_BASE		(BRIDGE_VIRT_BASE | 0x0300)
 #define BRIDGE_INT_TIMER1_CLR	(~0x0004)
 #define IRQ_KIRKWOOD_BRIDGE	1
 
-void __init kirkwood_init_early(void)
+void __init kirkwood_init_early(void __iomem* base)
 {
-	orion_time_set_base(TIMER_VIRT_BASE);
+	orion_time_set_base(base);
 }
 
-static void __init kirkwood_timer_init(void)
+static void __init kirkwood_timer_init(void __iomem* base)
 {
-	orion_time_init(BRIDGE_VIRT_BASE, BRIDGE_INT_TIMER1_CLR,
+	orion_time_init(base, BRIDGE_INT_TIMER1_CLR,
 			IRQ_KIRKWOOD_BRIDGE, kirkwood_tclk);
 	printk("kirkwood_timer_init\n");
 }
@@ -365,8 +365,9 @@ static void register_platform_callbacks(void)
 	l4x_register_platform_device_callback("dmamem",       dmamem_cb);
     //l4x_register_platform_device_callback("mv643xx",      kirkwood_device_cb_mv643xx);
 
-	kirkwood_init_early();
-	kirkwood_timer_init();
+	void __iomem *virtbase = ioremap(BRIDGE_VIRT_BASE, 0xffff);
+	kirkwood_init_early(virtbase);
+	kirkwood_timer_init(virtbase);
 	kirkwood_ge00_init(&sheevaplug_ge00_data);
     //--- End Sheevaplug Code (Julian)---
 }

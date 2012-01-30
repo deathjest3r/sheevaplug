@@ -8,6 +8,13 @@ hw-root
     new-res Irq(11);
   }
 
+  SHI => new Device()
+  {
+    .hid = "shit";
+    new-res Mmio(0xFED20000 .. 0xFED3FFFF);
+    new-res Irq(1);
+  }
+
   DMA => new Device()
   {
     .hid = "dmamem";
@@ -19,4 +26,5 @@ l4lx => new System_bus()
 {
   DMA => wrap(hw-root.DMA);
   NIC => wrap(hw-root.NIC);
+  SHI => wrap(hw-root.SHI);
 }

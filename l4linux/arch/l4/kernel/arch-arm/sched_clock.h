@@ -141,7 +141,9 @@ void __init init_sched_clock(struct clock_data *cd, void (*update)(void),
 	 * sets the initial epoch.
 	 */
 	sched_clock_timer.data = msecs_to_jiffies(w - (w / 10));
+	printk("Before update\n");	
 	update();
+	printk("After update\n");
 
 	/*
 	 * Ensure that sched_clock() starts off at 0ns

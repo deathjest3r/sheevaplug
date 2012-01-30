@@ -73,8 +73,9 @@ unsigned long long notrace sched_clock(void)
 
 static void notrace orion_update_sched_clock(void)
 {
-	u32 cyc = ~readl(timer_base + TIMER0_VAL_OFF);
-	printk("orion_update_sched_clock\n");
+	u32 cyc;
+	printk("orion_update_sched_clock (Timer_base: 0x%x)\n", timer_base);
+	cyc = ~readl(timer_base + TIMER0_VAL_OFF);	
 	update_sched_clock(&cd, cyc, (u32)~0);
 }
 
@@ -234,10 +235,13 @@ orion_time_init(u32 _bridge_base, u32 _bridge_timer1_clr_mask,
 	 * Setup free-running clocksource timer (interrupts
 	 * disabled).
 	 */
-	printk("Before writing to memory\n");
+	printk("Before writing to memory (timer_base: 0x%x)\n", timer_base);
 
 	writel(0xffffffff, timer_base + TIMER0_VAL_OFF);
 	writel(0xffffffff, timer_base + TIMER0_RELOAD_OFF);
+
+	printk("Before reading bridge_base\n");
+	
 	u = readl(bridge_base + BRIDGE_MASK_OFF);
 	writel(u & ~BRIDGE_INT_TIMER0, bridge_base + BRIDGE_MASK_OFF);
 	u = readl(timer_base + TIMER_CTRL_OFF);
