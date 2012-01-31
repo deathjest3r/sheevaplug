@@ -230,6 +230,7 @@ static L4X_DEVICE_CB(dmamem_cb)
 #define CGC_GE0			(1 << 0)
 #define CGC_PEX0		(1 << 2)
 #define CGC_DUNIT		(1 << 6)
+#define CGC_RUNIT		(1 << 7)
 #define CGC_SATA0		(1 << 14)
 #define CGC_SATA1		(1 << 15)
 #define CGC_PEX1		(1 << 18)
@@ -333,6 +334,8 @@ unsigned int kirkwood_clk_ctrl = CGC_DUNIT | CGC_RESERVED;
 void __init kirkwood_ge00_init(struct mv643xx_eth_platform_data *eth_data)
 {
 	kirkwood_clk_ctrl |= CGC_GE0;
+	kirkwood_clk_ctrl |= CGC_RUNIT;
+	kirkwood_clk_ctrl |= CGC_SATA0;
 
 	orion_ge00_init(eth_data, &kirkwood_mbus_dram_info,
 			GE00_PHYS_BASE, 11, 46, 200000000);
@@ -342,41 +345,56 @@ static struct mv643xx_eth_platform_data sheevaplug_ge00_data = {
     .phy_addr	= MV643XX_ETH_PHY_ADDR(0),
 };
 
-static int __init kirkwood_clock_gate(void)
+int bridge_base = 0;
+int BRIDGE_PHYS_BASE(void)
 {
-	int KIRKWOOD_REGS_VIRT_BASE 	= ioremap(0xf1020000, 0xffff);
+	if(bridge_base == 0)
+		return ioremap(0xf1020000, 0xffff);
+	return bridge_base;
+}
 
-	int BRIDGE_VIRT_BASE		= (KIRKWOOD_REGS_VIRT_BASE | 0x20000);
+int pcie_base = 0;
+int PCIE_PHYS_BASE(void)
+{
+	if(pcie_base == 0)
+		return ioremap(0xf1040000, 0xffff);
+	return pcie_base;
+}
 
-	int SATA_PHYS_BASE		= (KIRKWOOD_REGS_PHYS_BASE | 0x80000);
-	//int SATA_VIRT_BASE		= (KIRKWOOD_REGS_VIRT_BASE | 0x80000);
-	int SATA_VIRT_BASE		= ioremap(0xf1080000, 0xffff);
+int sata_base = 0;
+int SATA_PHYS_BASE(void)
+{
+	if(sata_base == 0)
+		return ioremap(0xf1040000, 0xffff);
+	return sata_base;
+}
 
-	int SATA0_IF_CTRL		= (SATA_VIRT_BASE | 0x2050);
-	int SATA0_PHY_MODE_2		= (SATA_VIRT_BASE | 0x2330);
-	int SATA1_IF_CTRL		= (SATA_VIRT_BASE | 0x4050);
-	int SATA1_PHY_MODE_2		= (SATA_VIRT_BASE | 0x4330);
+int CLOCK_GATING_CTRL(void)
+{
+	return (BRIDGE_PHYS_BASE() | 0x11c);
+}
 
-	//int PCIE_VIRT_BASE		= (KIRKWOOD_REGS_VIRT_BASE | 0x40000);
-	int PCIE_VIRT_BASE		= ioremap(0xf1040000, 0xffff);
-	int PCIE_LINK_CTRL		= (PCIE_VIRT_BASE | 0x70);
-	int PCIE_STATUS			= (PCIE_VIRT_BASE | 0x1a04);
+static int __init kirkwood_clock_gate(void)
+{	
+	int SATA0_IF_CTRL		= (SATA_PHYS_BASE() | 0x2050);
+	int SATA0_PHY_MODE_2		= (SATA_PHYS_BASE() | 0x2330);
+	int SATA1_IF_CTRL		= (SATA_PHYS_BASE() | 0x4050);
+	int SATA1_PHY_MODE_2		= (SATA_PHYS_BASE() | 0x4330);
 
-	int PCIE1_VIRT_BASE		= (KIRKWOOD_REGS_VIRT_BASE | 0x44000);
-	int PCIE1_LINK_CTRL		= (PCIE1_VIRT_BASE | 0x70);
-	int PCIE1_STATUS		= (PCIE1_VIRT_BASE | 0x1a04);
-
-	int CLOCK_GATING_CTRL		= (BRIDGE_VIRT_BASE | 0x11c);
+	int PCIE_LINK_CTRL		= (PCIE_PHYS_BASE() | 0x70);
+	int PCIE_STATUS			= (PCIE_PHYS_BASE() | 0x1a04);
 	
-
-	unsigned int curr = readl(CLOCK_GATING_CTRL);
+	unsigned int curr = readl(CLOCK_GATING_CTRL());
 
 	//kirkwood_pcie_id(&dev, &rev);
-	//printk(KERN_DEBUG "Gating clock of unused units\n");
-	//printk(KERN_DEBUG "before: 0x%08x\n", curr);
+	printk("Gating clock of unused units\n");
+	printk("before: 0x%08x\n", curr);
 
 	/* Make sure those units are accessible */
-	writel(curr | CGC_SATA0 | CGC_SATA1 | CGC_PEX0 | CGC_PEX1, CLOCK_GATING_CTRL);
+	writel(curr | CGC_SATA0 | CGC_SATA1 | CGC_PEX0 | CGC_PEX1, CLOCK_GATING_CTRL());
+
+
+	printk("before shutting down SATA\n");
 
 	/* For SATA: first shutdown the phy */
 	if (!(kirkwood_clk_ctrl & CGC_SATA0)) {
@@ -391,6 +409,8 @@ static int __init kirkwood_clock_gate(void)
 		/* Disable PHY */
 		writel(readl(SATA1_IF_CTRL) | 0x200, SATA1_IF_CTRL);
 	}
+
+	printk("before shutting down PCIe\n");
 	
 	/* For PCIe: first shutdown the phy */
 	if (!(kirkwood_clk_ctrl & CGC_PEX0)) {
@@ -404,10 +424,17 @@ static int __init kirkwood_clock_gate(void)
 	kirkwood_clk_ctrl |= CGC_PEX1;
 
 	/* Now gate clock the required units */
-	writel(kirkwood_clk_ctrl, CLOCK_GATING_CTRL);
-	printk(KERN_DEBUG " after: 0x%08x\n", readl(CLOCK_GATING_CTRL));
+	writel(kirkwood_clk_ctrl, CLOCK_GATING_CTRL());
+	printk(" after: 0x%08x\n", readl(CLOCK_GATING_CTRL()));
 
 	return 0;
+}
+
+void kirkwood_enable_pcie(void)
+{
+	u32 curr = readl(CLOCK_GATING_CTRL());
+	if (!(curr & CGC_PEX0))
+		writel(curr | CGC_PEX0, CLOCK_GATING_CTRL());
 }
 
 static void register_platform_callbacks(void)
@@ -418,7 +445,11 @@ static void register_platform_callbacks(void)
 	l4x_register_platform_device_callback("dmamem",       dmamem_cb);
 	//l4x_register_platform_device_callback("mv643xx",      kirkwood_device_cb_mv643xx);
 
-	kirkwood_ge00_init(&sheevaplug_ge00_data);	
+	kirkwood_ge00_init(&sheevaplug_ge00_data);
+
+	printk("After kirkwood_ge00_init\n");
+	kirkwood_enable_pcie();
+	printk("After kirkwood_enable_pcie\n");
 	kirkwood_clock_gate();
 	//--- End Sheevaplug Code (Julian)---
 }
