@@ -363,7 +363,7 @@ int sata_base = 0;
 int SATA_PHYS_BASE(void)
 {
 	if(sata_base == 0)
-		return ioremap(0xf1040000, 0xffff);
+		return ioremap(0xf1080000, 0xffff);
 	return sata_base;
 }
 
