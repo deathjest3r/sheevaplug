@@ -227,6 +227,8 @@ static L4X_DEVICE_CB(dmamem_cb)
 #define KIRKWOOD_REGS_PHYS_BASE	0xf1000000
 #define GE00_PHYS_BASE		(KIRKWOOD_REGS_PHYS_BASE | 0x70000)
 
+#define CPU_CONFIG_ERROR_PROP	0x00000004
+
 #define CGC_GE0			(1 << 0)
 #define CGC_PEX0		(1 << 2)
 #define CGC_DUNIT		(1 << 6)
@@ -235,6 +237,44 @@ static L4X_DEVICE_CB(dmamem_cb)
 #define CGC_SATA1		(1 << 15)
 #define CGC_PEX1		(1 << 18)
 #define CGC_RESERVED		(0x6 << 21)
+
+#define TARGET_DDR		0
+#define TARGET_DEV_BUS		1
+#define TARGET_SRAM		3
+#define TARGET_PCIE		4
+#define ATTR_DEV_SPI_ROM	0x1e
+#define ATTR_DEV_BOOT		0x1d
+#define ATTR_DEV_NAND		0x2f
+#define ATTR_DEV_CS3		0x37
+#define ATTR_DEV_CS2		0x3b
+#define ATTR_DEV_CS1		0x3d
+#define ATTR_DEV_CS0		0x3e
+#define ATTR_PCIE_IO		0xe0
+#define ATTR_PCIE_MEM		0xe8
+#define ATTR_PCIE1_IO		0xd0
+#define ATTR_PCIE1_MEM		0xd8
+#define ATTR_SRAM		0x01
+
+#define DDR_BASE_CS_OFF(n)	(0x0000 + ((n) << 3))
+#define DDR_SIZE_CS_OFF(n)	(0x0004 + ((n) << 3))
+
+#define WIN_CTRL_OFF		0x0000
+#define WIN_BASE_OFF		0x0004
+#define WIN_REMAP_LO_OFF	0x0008
+#define WIN_REMAP_HI_OFF	0x000c
+
+#define KIRKWOOD_PCIE_IO_SIZE		SZ_1M
+#define KIRKWOOD_PCIE1_IO_SIZE		SZ_1M
+
+#define KIRKWOOD_PCIE_IO_BUS_BASE	0x00000000
+#define KIRKWOOD_PCIE1_IO_BUS_BASE	0x00100000
+
+#define KIRKWOOD_PCIE_MEM_SIZE		SZ_128M
+#define KIRKWOOD_PCIE1_MEM_SIZE		SZ_128M
+
+#define KIRKWOOD_SRAM_SIZE		SZ_2K
+
+#define KIRKWOOD_NAND_MEM_SIZE		SZ_1K
 
 struct mbus_dram_target_info kirkwood_mbus_dram_info;
 
@@ -343,44 +383,119 @@ static struct mv643xx_eth_platform_data sheevaplug_ge00_data = {
     .phy_addr	= MV643XX_ETH_PHY_ADDR(0),
 };
 
-int bridge_base = 0;
-int BRIDGE_PHYS_BASE(void)
+void __iomem *bridge_base = 0;
+void __iomem *BRIDGE_PHYS_BASE(void)
 {
 	if(bridge_base == 0)
 		return ioremap(0xf1020000, 0xffff);
 	return bridge_base;
 }
 
-int pcie_base = 0;
-int PCIE_PHYS_BASE(void)
+void __iomem *pcie_base = 0;
+void __iomem *PCIE_PHYS_BASE(void)
 {
 	if(pcie_base == 0)
 		return ioremap(0xf1040000, 0xffff);
 	return pcie_base;
 }
 
-int sata_base = 0;
-int SATA_PHYS_BASE(void)
+void __iomem *sata_base = 0;
+void __iomem *SATA_PHYS_BASE(void)
 {
 	if(sata_base == 0)
 		return ioremap(0xf1080000, 0xffff);
 	return sata_base;
 }
 
-int CLOCK_GATING_CTRL(void)
+/*
+ * SRAM Size: 1K
+ */
+void __iomem *sram_base = 0;
+void __iomem *KIRKWOOD_SRAM_PHYS_BASE(void) {
+	if(sram_base == 0)
+		return ioremap(0xf5000000, 0x3ff);
+	return sram_base;
+}
+
+/*
+ * NAND Size: 2K
+ */
+void __iomem *nand_base = 0;
+void __iomem *KIRKWOOD_NAND_MEM_PHYS_BASE(void) {
+	if(nand_base == 0)
+		return ioremap(0xf4000000, 0x7ff);
+	return nand_base;
+}
+
+
+/*
+ * PCIe IOSize: 1M
+ */
+void __iomem *pcie_io_base = 0;
+void __iomem *KIRKWOOD_PCIE_IO_PHYS_BASE(void)
 {
-	return (BRIDGE_PHYS_BASE() | 0x11c);
+	if(pcie_io_base == 0)
+		return ioremap(0xf2000000, 0xfffff);
+	return pcie_io_base;
+}
+void __iomem *pcie1_io_base = 0;
+void __iomem *KIRKWOOD_PCIE1_IO_PHYS_BASE(void)
+{
+	if(pcie1_io_base == 0)
+		return ioremap(0xf3000000, 0xfffff);
+	return pcie1_io_base;
+}
+
+/*
+ * PCIe MemSize: 128M
+ */
+void __iomem *pcie_mem_base = 0;
+void __iomem *KIRKWOOD_PCIE_MEM_PHYS_BASE(void)
+{
+	if(pcie_mem_base == 0)
+		return ioremap(0xe0000000, 0x7ffffff);
+	return pcie_mem_base;
+}
+void __iomem *pcie1_mem_base = 0;
+void __iomem *KIRKWOOD_PCIE1_MEM_PHYS_BASE(void)
+{
+	if(pcie1_mem_base == 0)
+		return ioremap(0xe8000000, 0x7ffffff);
+	return pcie1_mem_base;
+}
+
+void __iomem *KIRKWOOD_PCIE_MEM_BUS_BASE(void)
+{
+	return KIRKWOOD_PCIE_MEM_PHYS_BASE();
+}
+
+void __iomem *KIRKWOOD_PCIE1_MEM_BUS_BASE(void)
+{
+	return KIRKWOOD_PCIE1_MEM_PHYS_BASE();
+}
+
+void __iomem *ddr_base = 0;
+void __iomem *DDR_PHYS_BASE(void)
+{
+	if(ddr_base == 0)
+		return ioremap(0xf1000000, 0xffff);
+	return ddr_base;
+}
+
+void __iomem *CLOCK_GATING_CTRL(void)
+{
+	return (BRIDGE_PHYS_BASE() + 0x11c);
 }
 
 static int __init kirkwood_clock_gate(void)
 {	
-	int SATA0_IF_CTRL		= (SATA_PHYS_BASE() | 0x2050);
-	int SATA0_PHY_MODE_2		= (SATA_PHYS_BASE() | 0x2330);
-	int SATA1_IF_CTRL		= (SATA_PHYS_BASE() | 0x4050);
-	int SATA1_PHY_MODE_2		= (SATA_PHYS_BASE() | 0x4330);
+	int SATA0_IF_CTRL		= (SATA_PHYS_BASE() + 0x2050);
+	int SATA0_PHY_MODE_2		= (SATA_PHYS_BASE() + 0x2330);
+	int SATA1_IF_CTRL		= (SATA_PHYS_BASE() + 0x4050);
+	int SATA1_PHY_MODE_2		= (SATA_PHYS_BASE() + 0x4330);
 
-	int PCIE_LINK_CTRL		= (PCIE_PHYS_BASE() | 0x70);
-	int PCIE_STATUS			= (PCIE_PHYS_BASE() | 0x1a04);
+	int PCIE_LINK_CTRL		= (PCIE_PHYS_BASE() + 0x70);
+	int PCIE_STATUS			= (PCIE_PHYS_BASE() + 0x1a04);
 	
 	unsigned int curr = readl(CLOCK_GATING_CTRL());
 
@@ -390,9 +505,6 @@ static int __init kirkwood_clock_gate(void)
 
 	/* Make sure those units are accessible */
 	writel(curr | CGC_SATA0 | CGC_SATA1 | CGC_PEX0 | CGC_PEX1, CLOCK_GATING_CTRL());
-
-
-	printk("before shutting down SATA\n");
 
 	/* For SATA: first shutdown the phy */
 	if (!(kirkwood_clk_ctrl & CGC_SATA0)) {
@@ -407,8 +519,6 @@ static int __init kirkwood_clock_gate(void)
 		/* Disable PHY */
 		writel(readl(SATA1_IF_CTRL) | 0x200, SATA1_IF_CTRL);
 	}
-
-	printk("before shutting down PCIe\n");
 	
 	/* For PCIe: first shutdown the phy */
 	if (!(kirkwood_clk_ctrl & CGC_PEX0)) {
@@ -436,13 +546,142 @@ void kirkwood_enable_pcie(void)
 		writel(curr | CGC_PEX0, CLOCK_GATING_CTRL());
 }
 
+int WIN_OFF(int n)
+{
+	return (BRIDGE_PHYS_BASE() + 0x0000 + ((n) << 4));
+}
+
+static int __init cpu_win_can_remap(int win)
+{
+	if (win < 4)
+		return 1;
+
+	return 0;
+}
+
+static void __init setup_cpu_win(int win, u32 base, u32 size,
+				 u8 target, u8 attr, int remap)
+{
+	void __iomem *addr = (void __iomem *)WIN_OFF(win);
+	u32 ctrl;
+
+	base &= 0xffff0000;
+	ctrl = ((size - 1) & 0xffff0000) | (attr << 8) | (target << 4) | 1;
+
+	writel(base, addr + WIN_BASE_OFF);
+	writel(ctrl, addr + WIN_CTRL_OFF);
+	if (cpu_win_can_remap(win)) {
+		if (remap < 0)
+			remap = base;
+
+		writel(remap & 0xffff0000, addr + WIN_REMAP_LO_OFF);
+		writel(0, addr + WIN_REMAP_HI_OFF);
+	}
+
+	printk("addr: 0x%x\n", addr);
+	printk("addr + WIN_BASE_OFF: 0x%x\n", addr + WIN_BASE_OFF);
+	printk("addr + WIN_CTRL_OFF: 0x%x\n", addr + WIN_CTRL_OFF);
+	printk("addr + WIN_REMAP_LO_OFF: 0x%x\n", addr + WIN_REMAP_LO_OFF);
+	printk("addr + WIN_REMAP_HI_OFF: 0x%x\n", addr + WIN_REMAP_HI_OFF);
+}
+
+void __init kirkwood_setup_cpu_mbus(void)
+{		
+	void __iomem *addr;
+	int i;
+	int cs;
+
+	void __iomem* DDR_WINDOW_CPU_BASE = (DDR_PHYS_BASE() + 0x1500);
+
+	/*
+	 * First, disable and clear windows.
+	 */
+	for (i = 0; i < 8; i++) {
+		addr = (void __iomem *)WIN_OFF(i);
+
+		writel(0, addr + WIN_BASE_OFF);
+		writel(0, addr + WIN_CTRL_OFF);
+		if (cpu_win_can_remap(i)) {
+			writel(0, addr + WIN_REMAP_LO_OFF);
+			writel(0, addr + WIN_REMAP_HI_OFF);
+		}
+	}
+
+	/*
+	 * Setup windows for PCIe IO+MEM space.
+	 */
+	setup_cpu_win(0, KIRKWOOD_PCIE_IO_PHYS_BASE(), KIRKWOOD_PCIE_IO_SIZE,
+		      TARGET_PCIE, ATTR_PCIE_IO, KIRKWOOD_PCIE_IO_BUS_BASE);
+
+	setup_cpu_win(1, KIRKWOOD_PCIE_MEM_PHYS_BASE(), KIRKWOOD_PCIE_MEM_SIZE,
+		      TARGET_PCIE, ATTR_PCIE_MEM, KIRKWOOD_PCIE_MEM_BUS_BASE());
+
+	setup_cpu_win(2, KIRKWOOD_PCIE1_IO_PHYS_BASE(), KIRKWOOD_PCIE1_IO_SIZE,
+		      TARGET_PCIE, ATTR_PCIE1_IO, KIRKWOOD_PCIE1_IO_BUS_BASE);
+
+	setup_cpu_win(3, KIRKWOOD_PCIE1_MEM_PHYS_BASE(), KIRKWOOD_PCIE1_MEM_SIZE,
+		      TARGET_PCIE, ATTR_PCIE1_MEM, KIRKWOOD_PCIE1_MEM_BUS_BASE());
+
+	/*
+	 * Setup window for NAND controller.
+	 */
+	setup_cpu_win(4, KIRKWOOD_NAND_MEM_PHYS_BASE(), KIRKWOOD_NAND_MEM_SIZE,
+		      TARGET_DEV_BUS, ATTR_DEV_NAND, -1);
+
+	/*
+	 * Setup window for SRAM.
+	 */
+	setup_cpu_win(5, KIRKWOOD_SRAM_PHYS_BASE(), KIRKWOOD_SRAM_SIZE,
+		      TARGET_SRAM, ATTR_SRAM, -1);
+
+	/*
+	 * Setup MBUS dram target info.
+	 */
+	kirkwood_mbus_dram_info.mbus_dram_target_id = TARGET_DDR;
+
+	
+	addr = (void __iomem *)DDR_WINDOW_CPU_BASE;
+
+	for (i = 0, cs = 0; i < 4; i++) {
+		u32 base = readl(addr + DDR_BASE_CS_OFF(i));
+		u32 size = readl(addr + DDR_SIZE_CS_OFF(i));
+
+		/*
+		 * Chip select enabled?
+		 */
+		if (size & 1) {
+			struct mbus_dram_window *w;
+
+			w = &kirkwood_mbus_dram_info.cs[cs++];
+			w->cs_index = i;
+			w->mbus_attr = 0xf & ~(1 << i);
+			w->base = base & 0xffff0000;
+			w->size = (size | 0x0000ffff) + 1;
+		}
+	}
+	kirkwood_mbus_dram_info.num_cs = cs;
+}
+
 static void register_platform_callbacks(void)
 {
+	void __iomem *CPU_CONFIG = (BRIDGE_PHYS_BASE() + 0x0100);
+	
 	l4x_register_platform_device_callback("compactflash", realview_device_cb_pata);
 	l4x_register_platform_device_callback("smsc911x",     realview_device_cb_smsc);
 	l4x_register_platform_device_callback("aaci",         aaci_cb);
 	l4x_register_platform_device_callback("dmamem",       dmamem_cb);
 	//l4x_register_platform_device_callback("mv643xx",      kirkwood_device_cb_mv643xx);
+
+	/*
+	 * Disable propagation of mbus errors to the CPU local bus,
+	 * as this causes mbus errors (which can occur for example
+	 * for PCI aborts) to throw CPU aborts, which we're not set
+	 * up to deal with.
+	 */
+	
+	writel(readl(CPU_CONFIG) & ~CPU_CONFIG_ERROR_PROP, CPU_CONFIG);
+	
+	kirkwood_setup_cpu_mbus();
 
 	kirkwood_ge00_init(&sheevaplug_ge00_data);
 
