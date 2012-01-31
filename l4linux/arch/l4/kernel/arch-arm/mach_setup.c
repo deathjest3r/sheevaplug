@@ -334,8 +334,6 @@ unsigned int kirkwood_clk_ctrl = CGC_DUNIT | CGC_RESERVED;
 void __init kirkwood_ge00_init(struct mv643xx_eth_platform_data *eth_data)
 {
 	kirkwood_clk_ctrl |= CGC_GE0;
-	kirkwood_clk_ctrl |= CGC_RUNIT;
-	kirkwood_clk_ctrl |= CGC_SATA0;
 
 	orion_ge00_init(eth_data, &kirkwood_mbus_dram_info,
 			GE00_PHYS_BASE, 11, 46, 200000000);
@@ -422,6 +420,7 @@ static int __init kirkwood_clock_gate(void)
 	}
 
 	kirkwood_clk_ctrl |= CGC_PEX1;
+	kirkwood_clk_ctrl |= CGC_RUNIT;
 
 	/* Now gate clock the required units */
 	writel(kirkwood_clk_ctrl, CLOCK_GATING_CTRL());
@@ -447,9 +446,7 @@ static void register_platform_callbacks(void)
 
 	kirkwood_ge00_init(&sheevaplug_ge00_data);
 
-	printk("After kirkwood_ge00_init\n");
 	kirkwood_enable_pcie();
-	printk("After kirkwood_enable_pcie\n");
 	kirkwood_clock_gate();
 	//--- End Sheevaplug Code (Julian)---
 }
