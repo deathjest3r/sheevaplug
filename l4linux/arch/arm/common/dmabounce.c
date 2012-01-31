@@ -481,11 +481,7 @@ int dmabounce_register_dev(struct device *dev, unsigned long small_buffer_size,
 			small_buffer_size);
 		goto err_free;
 	}
-	else {
-		printk("dmabounce: Allocate DMA pool for %ld byte objects\n");	
-	}
 		
-	
 	if (large_buffer_size) {
 		ret = dmabounce_init_pool(&device_info->large, dev,
 					  "large_dmabounce_pool",
@@ -496,10 +492,6 @@ int dmabounce_register_dev(struct device *dev, unsigned long small_buffer_size,
 				large_buffer_size);
 			goto err_destroy;
 		}
-		else {
-			printk("Large, dmabounce: Allocate DMA pool for %ld byte objects\n", large_buffer_size);	
-		}
-	
 	}
 
 	device_info->dev = dev;

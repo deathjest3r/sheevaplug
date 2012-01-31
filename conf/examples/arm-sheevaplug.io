@@ -8,10 +8,22 @@ hw-root
     new-res Irq(11);
   }
 
-  VIR => new Device()
+  BRI => new Device()
   {
-    .hid = "virt";
-    new-res Mmio(0xFED00000 .. 0xFEDFFFFF);
+    .hid = "bridge";
+    new-res Mmio(0xF1020000 .. 0xF102FFFF);
+  }
+
+  SAT => new Device()
+  {
+    .hid = "sata";
+    new-res Mmio(0xF1080000 .. 0xF108FFFF);
+  }
+
+  PCI => new Device()
+  {
+    .hid = "pcie";
+    new-res Mmio(0xF1040000 .. 0xF104FFFF);
   }
 
   DMA => new Device()
@@ -25,5 +37,7 @@ l4lx => new System_bus()
 {
   DMA => wrap(hw-root.DMA);
   NIC => wrap(hw-root.NIC);
-  VIR => wrap(hw-root.VIR);
+  BRI => wrap(hw-root.BRI);
+  SAT => wrap(hw-root.SAT);
+  PCI => wrap(hw-root.PCI);
 }
