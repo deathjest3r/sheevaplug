@@ -1,0 +1,24 @@
+modaddr 0x01100000
+
+entry L4Linux ARM
+kernel fiasco -serial_esc
+roottask moe rom/l4lx.cfg
+module l4re
+module ned
+module l4lx.cfg
+module io
+module arm-sheevaplug.io
+module vmlinuz.arm
+module rootfs.rd
+
+entry L4Linux-arm-multi
+kernel fiasco -serial_esc
+roottask moe rom/l4lx-multi.cfg
+module l4re
+module ned
+module l4lx-multi.cfg
+module io
+module vmlinuz.arm
+module ramdisk-control.rd
+module ramdisk-client.rd
+
