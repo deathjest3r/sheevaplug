@@ -5,12 +5,34 @@
 #include <linux/platform_device.h>
 #include <linux/ata_platform.h>
 #include <linux/smsc911x.h>
+#include <linux/mv643xx_eth.h>
 #include <linux/slab.h>
 #include <linux/list.h>
 
 #include <asm/generic/devs.h>
 
 #include <asm/l4x/dma.h>
+
+#define GE00_PHYS_BASE          0xf1070000
+
+#define CPU_CONFIG_ERROR_PROP   0x00000004
+
+#define CGC_GE0                 (1 << 0)
+#define CGC_PEX0                (1 << 2)
+#define CGC_DUNIT               (1 << 6)
+#define CGC_RUNIT               (1 << 7)
+#define CGC_RESERVED            (0x6 << 21)
+
+#define TARGET_DDR              0
+
+#define DDR_BASE_CS_OFF(n)      (0x0000 + ((n) << 3))
+#define DDR_SIZE_CS_OFF(n)      (0x0004 + ((n) << 3))
+
+#define WIN_CTRL_OFF            0x0000
+#define WIN_BASE_OFF            0x0004
+#define WIN_REMAP_LO_OFF        0x0008
+#define WIN_REMAP_HI_OFF        0x000c
+
 
 static int dev_init_done;
 
@@ -221,12 +243,191 @@ static L4X_DEVICE_CB(dmamem_cb)
 		printk("Adding DMA memory to DMA allocator failed!\n");
 }
 
+
+struct mbus_dram_target_info kirkwood_mbus_dram_info;
+
+static __init void ge_complete(
+	struct mv643xx_eth_shared_platform_data *orion_ge_shared_data,
+	struct mbus_dram_target_info *mbus_dram_info, int tclk,
+	struct resource *orion_ge_resource, unsigned long irq,
+	struct platform_device *orion_ge_shared,
+	struct mv643xx_eth_platform_data *eth_data,
+	struct platform_device *orion_ge)
+{
+	orion_ge_shared_data->dram = mbus_dram_info;
+	orion_ge_shared_data->t_clk = tclk;
+	orion_ge_resource->start = irq;
+	orion_ge_resource->end = irq;
+	eth_data->shared = orion_ge_shared;
+	orion_ge->dev.platform_data = eth_data;
+
+	platform_device_register(orion_ge_shared);
+	platform_device_register(orion_ge);
+	
+	dmabounce_register_dev(&orion_ge->dev, 64, 4096);
+	dmabounce_register_dev(&orion_ge_shared->dev, 64, 4096);
+}
+
+struct mv643xx_eth_shared_platform_data orion_ge00_shared_data;
+
+static struct resource orion_ge00_shared_resources[] = {
+	{
+		.name	= "ge00 base",
+	}, {
+		.name	= "ge00 err irq",
+	},
+};
+
+static struct platform_device orion_ge00_shared = {
+	.name		= MV643XX_ETH_SHARED_NAME,
+	.id		= 0,
+	.dev		= {
+		.platform_data	= &orion_ge00_shared_data,
+	},
+};
+
+static struct resource orion_ge00_resources[] = {
+	{
+		.name	= "ge00 irq",
+		.flags	= IORESOURCE_IRQ,
+	},
+};
+
+static struct platform_device orion_ge00 = {
+	.name		= MV643XX_ETH_NAME,
+	.id		= 0,
+	.num_resources	= 1,
+	.resource	= orion_ge00_resources,
+	.dev		= {
+		.coherent_dma_mask	= DMA_BIT_MASK(32),
+	},
+};
+
+static struct mv643xx_eth_platform_data sheevaplug_ge00_data = {
+    .phy_addr	= MV643XX_ETH_PHY_ADDR(0),
+};
+
+static void fill_resources(struct platform_device *device,
+			   struct resource *resources,
+			   resource_size_t mapbase,
+			   resource_size_t size,
+			   unsigned int irq)
+{
+	device->resource = resources;
+	device->num_resources = 1;
+	resources[0].flags = IORESOURCE_MEM;
+	resources[0].start = mapbase;
+	resources[0].end = mapbase + size;
+
+	if (irq != NO_IRQ) {
+		device->num_resources++;
+		resources[1].flags = IORESOURCE_IRQ;
+		resources[1].start = irq;
+		resources[1].end = irq;
+	}
+}
+
+void __init kirkwood_ge00_init(struct mv643xx_eth_platform_data *eth_data)
+{
+	fill_resources(&orion_ge00_shared, orion_ge00_shared_resources,
+		       GE00_PHYS_BASE + 0x2000, SZ_16K - 1, 46);
+	ge_complete(&orion_ge00_shared_data, &kirkwood_mbus_dram_info, 200000000,
+		    orion_ge00_resources, 11, &orion_ge00_shared,
+		    eth_data, &orion_ge00);
+}
+
+void __iomem *bridge_base = 0;
+void __iomem *BRIDGE_PHYS_BASE(void)
+{
+	if(bridge_base == 0)
+		return ioremap(0xf1020000, 0xffff);
+	return bridge_base;
+}
+
+static int __init kirkwood_clock_gate(void)
+{	
+	void __iomem *clk_gating_ctrl = BRIDGE_PHYS_BASE() + 0x11c;
+	unsigned int kirkwood_clk_ctrl = CGC_DUNIT | CGC_RESERVED | CGC_GE0 | CGC_RUNIT;
+
+	/* Enable PCIe before activating the clk for ethernet */
+	u32 curr = readl(clk_gating_ctrl);
+	if (!(curr & CGC_PEX0))
+		writel(curr | CGC_PEX0, clk_gating_ctrl);
+
+	writel(kirkwood_clk_ctrl, clk_gating_ctrl);
+
+	return 0;
+}
+
+void __iomem* WIN_OFF(int n)
+{
+	return (BRIDGE_PHYS_BASE() + 0x0000 + ((n) << 4));
+}
+
+static int __init cpu_win_can_remap(int win)
+{
+	if (win < 4)
+		return 1;
+	return 0;
+}
+
+void __init kirkwood_setup_cpu_mbus(void)
+{		
+	void __iomem *addr;
+	int i;
+	int cs;
+
+	for (i = 0; i < 8; i++) {
+		addr = (void __iomem *)WIN_OFF(i);
+
+		writel(0, addr + WIN_BASE_OFF);
+		writel(0, addr + WIN_CTRL_OFF);
+		if (cpu_win_can_remap(i)) {
+			writel(0, addr + WIN_REMAP_LO_OFF);
+			writel(0, addr + WIN_REMAP_HI_OFF);
+		}
+	}
+
+	kirkwood_mbus_dram_info.mbus_dram_target_id = TARGET_DDR;
+
+	addr = (ioremap(0xf1000000, 0xffff) + 0x1500);
+
+	for (i = 0, cs = 0; i < 4; i++) {
+		u32 base = readl(addr + DDR_BASE_CS_OFF(i));
+		u32 size = readl(addr + DDR_SIZE_CS_OFF(i));
+
+		if (size & 1) {
+			struct mbus_dram_window *w;
+
+			w = &kirkwood_mbus_dram_info.cs[cs++];
+			w->cs_index = i;
+			w->mbus_attr = 0xf & ~(1 << i);
+			w->base = base & 0xffff0000;
+			w->size = (size | 0x0000ffff) + 1;
+		}
+	}
+	kirkwood_mbus_dram_info.num_cs = cs;
+}
+
+static L4X_DEVICE_CB(kirkwood_device_cb_mv643xx)
+{
+	void __iomem *CPU_CONFIG = (BRIDGE_PHYS_BASE() + 0x0100);
+	
+	writel(readl(CPU_CONFIG) & ~CPU_CONFIG_ERROR_PROP, CPU_CONFIG);
+	
+	kirkwood_setup_cpu_mbus();
+	kirkwood_ge00_init(&sheevaplug_ge00_data);
+
+	kirkwood_clock_gate();
+}
+
 static void register_platform_callbacks(void)
 {
 	l4x_register_platform_device_callback("compactflash", realview_device_cb_pata);
 	l4x_register_platform_device_callback("smsc911x",     realview_device_cb_smsc);
 	l4x_register_platform_device_callback("aaci",         aaci_cb);
 	l4x_register_platform_device_callback("dmamem",       dmamem_cb);
+	l4x_register_platform_device_callback("mv643xx",      kirkwood_device_cb_mv643xx);
 }
 
 static void
