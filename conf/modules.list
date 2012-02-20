@@ -8,8 +8,13 @@ module ned
 module l4lx.cfg
 module io
 module arm-sheevaplug.io
+<<<<<<< HEAD
 module vmlinuz.arm
 module rootfs.rd
+=======
+module vmlinuz_0.arm
+module ramdisk-mgmt.rd
+>>>>>>> sheevaplug
 
 entry L4Linux-arm-multi
 kernel fiasco -serial_esc
@@ -18,7 +23,15 @@ module l4re
 module ned
 module l4lx-multi.cfg
 module io
+<<<<<<< HEAD
 module vmlinuz.arm
 module ramdisk-control.rd
 module ramdisk-client.rd
 
+=======
+module arm-sheevaplug.io
+module vmlinuz_1.arm
+module ramdisk-msmt.rd
+module vmlinuz_0.arm
+module ramdisk-mgmt.rd
+>>>>>>> sheevaplug

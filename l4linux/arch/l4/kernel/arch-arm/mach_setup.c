@@ -5,12 +5,34 @@
 #include <linux/platform_device.h>
 #include <linux/ata_platform.h>
 #include <linux/smsc911x.h>
+#include <linux/mv643xx_eth.h>
 #include <linux/slab.h>
 #include <linux/list.h>
 
 #include <asm/generic/devs.h>
 
 #include <asm/l4x/dma.h>
+
+#define GE00_PHYS_BASE          0xf1070000
+
+#define CPU_CONFIG_ERROR_PROP   0x00000004
+
+#define CGC_GE0                 (1 << 0)
+#define CGC_PEX0                (1 << 2)
+#define CGC_DUNIT               (1 << 6)
+#define CGC_RUNIT               (1 << 7)
+#define CGC_RESERVED            (0x6 << 21)
+
+#define TARGET_DDR              0
+
+#define DDR_BASE_CS_OFF(n)      (0x0000 + ((n) << 3))
+#define DDR_SIZE_CS_OFF(n)      (0x0004 + ((n) << 3))
+
+#define WIN_CTRL_OFF            0x0000
+#define WIN_BASE_OFF            0x0004
+#define WIN_REMAP_LO_OFF        0x0008
+#define WIN_REMAP_HI_OFF        0x000c
+
 
 static int dev_init_done;
 
@@ -221,60 +243,6 @@ static L4X_DEVICE_CB(dmamem_cb)
 		printk("Adding DMA memory to DMA allocator failed!\n");
 }
 
-//--- Start Sheevaplug Code (Julian)
-#include <linux/mv643xx_eth.h>
-
-#define KIRKWOOD_REGS_PHYS_BASE	0xf1000000
-#define GE00_PHYS_BASE		(KIRKWOOD_REGS_PHYS_BASE | 0x70000)
-
-#define CPU_CONFIG_ERROR_PROP	0x00000004
-
-#define CGC_GE0			(1 << 0)
-#define CGC_PEX0		(1 << 2)
-#define CGC_DUNIT		(1 << 6)
-#define CGC_RUNIT		(1 << 7)
-#define CGC_SATA0		(1 << 14)
-#define CGC_SATA1		(1 << 15)
-#define CGC_PEX1		(1 << 18)
-#define CGC_RESERVED		(0x6 << 21)
-
-#define TARGET_DDR		0
-#define TARGET_DEV_BUS		1
-#define TARGET_SRAM		3
-#define TARGET_PCIE		4
-#define ATTR_DEV_SPI_ROM	0x1e
-#define ATTR_DEV_BOOT		0x1d
-#define ATTR_DEV_NAND		0x2f
-#define ATTR_DEV_CS3		0x37
-#define ATTR_DEV_CS2		0x3b
-#define ATTR_DEV_CS1		0x3d
-#define ATTR_DEV_CS0		0x3e
-#define ATTR_PCIE_IO		0xe0
-#define ATTR_PCIE_MEM		0xe8
-#define ATTR_PCIE1_IO		0xd0
-#define ATTR_PCIE1_MEM		0xd8
-#define ATTR_SRAM		0x01
-
-#define DDR_BASE_CS_OFF(n)	(0x0000 + ((n) << 3))
-#define DDR_SIZE_CS_OFF(n)	(0x0004 + ((n) << 3))
-
-#define WIN_CTRL_OFF		0x0000
-#define WIN_BASE_OFF		0x0004
-#define WIN_REMAP_LO_OFF	0x0008
-#define WIN_REMAP_HI_OFF	0x000c
-
-#define KIRKWOOD_PCIE_IO_SIZE		SZ_1M
-#define KIRKWOOD_PCIE1_IO_SIZE		SZ_1M
-
-#define KIRKWOOD_PCIE_IO_BUS_BASE	0x00000000
-#define KIRKWOOD_PCIE1_IO_BUS_BASE	0x00100000
-
-#define KIRKWOOD_PCIE_MEM_SIZE		SZ_128M
-#define KIRKWOOD_PCIE1_MEM_SIZE		SZ_128M
-
-#define KIRKWOOD_SRAM_SIZE		SZ_2K
-
-#define KIRKWOOD_NAND_MEM_SIZE		SZ_1K
 
 struct mbus_dram_target_info kirkwood_mbus_dram_info;
 
@@ -335,6 +303,10 @@ static struct platform_device orion_ge00 = {
 	},
 };
 
+static struct mv643xx_eth_platform_data sheevaplug_ge00_data = {
+    .phy_addr	= MV643XX_ETH_PHY_ADDR(0),
+};
+
 static void fill_resources(struct platform_device *device,
 			   struct resource *resources,
 			   resource_size_t mapbase,
@@ -355,33 +327,14 @@ static void fill_resources(struct platform_device *device,
 	}
 }
 
-void __init orion_ge00_init(struct mv643xx_eth_platform_data *eth_data,
-			    struct mbus_dram_target_info *mbus_dram_info,
-			    unsigned long mapbase,
-			    unsigned long irq,
-			    unsigned long irq_err,
-			    int tclk)
-{
-	fill_resources(&orion_ge00_shared, orion_ge00_shared_resources,
-		       mapbase + 0x2000, SZ_16K - 1, irq_err);
-	ge_complete(&orion_ge00_shared_data, mbus_dram_info, tclk,
-		    orion_ge00_resources, irq, &orion_ge00_shared,
-		    eth_data, &orion_ge00);
-}
-
-unsigned int kirkwood_clk_ctrl = CGC_DUNIT | CGC_RESERVED;
-
 void __init kirkwood_ge00_init(struct mv643xx_eth_platform_data *eth_data)
 {
-	kirkwood_clk_ctrl |= CGC_GE0;
-
-	orion_ge00_init(eth_data, &kirkwood_mbus_dram_info,
-			GE00_PHYS_BASE, 11, 46, 200000000);
+	fill_resources(&orion_ge00_shared, orion_ge00_shared_resources,
+		       GE00_PHYS_BASE + 0x2000, SZ_16K - 1, 46);
+	ge_complete(&orion_ge00_shared_data, &kirkwood_mbus_dram_info, 200000000,
+		    orion_ge00_resources, 11, &orion_ge00_shared,
+		    eth_data, &orion_ge00);
 }
-
-static struct mv643xx_eth_platform_data sheevaplug_ge00_data = {
-    .phy_addr	= MV643XX_ETH_PHY_ADDR(0),
-};
 
 void __iomem *bridge_base = 0;
 void __iomem *BRIDGE_PHYS_BASE(void)
@@ -391,82 +344,22 @@ void __iomem *BRIDGE_PHYS_BASE(void)
 	return bridge_base;
 }
 
-void __iomem *pcie_base = 0;
-void __iomem *PCIE_PHYS_BASE(void)
-{
-	if(pcie_base == 0)
-		return ioremap(0xf1040000, 0xffff);
-	return pcie_base;
-}
-
-void __iomem *sata_base = 0;
-void __iomem *SATA_PHYS_BASE(void)
-{
-	if(sata_base == 0)
-		return ioremap(0xf1080000, 0xffff);
-	return sata_base;
-}
-
-void __iomem *ddr_base = 0;
-void __iomem *DDR_PHYS_BASE(void)
-{
-	if(ddr_base == 0)
-		return ioremap(0xf1000000, 0xffff);
-	return ddr_base;
-}
-
-void __iomem *CLOCK_GATING_CTRL(void)
-{
-	return (BRIDGE_PHYS_BASE() + 0x11c);
-}
-
 static int __init kirkwood_clock_gate(void)
 {	
-	int SATA0_IF_CTRL		= (SATA_PHYS_BASE() + 0x2050);
-	int SATA0_PHY_MODE_2		= (SATA_PHYS_BASE() + 0x2330);
-	int SATA1_IF_CTRL		= (SATA_PHYS_BASE() + 0x4050);
-	int SATA1_PHY_MODE_2		= (SATA_PHYS_BASE() + 0x4330);
+	void __iomem *clk_gating_ctrl = BRIDGE_PHYS_BASE() + 0x11c;
+	unsigned int kirkwood_clk_ctrl = CGC_DUNIT | CGC_RESERVED | CGC_GE0 | CGC_RUNIT;
 
-	int PCIE_LINK_CTRL		= (PCIE_PHYS_BASE() + 0x70);
-	int PCIE_STATUS			= (PCIE_PHYS_BASE() + 0x1a04);
-	
-	unsigned int curr = readl(CLOCK_GATING_CTRL());
+	/* Enable PCIe before activating the clk for ethernet */
+	u32 curr = readl(clk_gating_ctrl);
+	if (!(curr & CGC_PEX0))
+		writel(curr | CGC_PEX0, clk_gating_ctrl);
 
-	writel(curr | CGC_SATA0 | CGC_SATA1 | CGC_PEX0 | CGC_PEX1, CLOCK_GATING_CTRL());
-
-	if (!(kirkwood_clk_ctrl & CGC_SATA0)) {
-		writel(readl(SATA0_PHY_MODE_2) & ~0xf, SATA0_PHY_MODE_2);
-		writel(readl(SATA0_IF_CTRL) | 0x200, SATA0_IF_CTRL);
-	}
-	if (!(kirkwood_clk_ctrl & CGC_SATA1)) {
-		writel(readl(SATA1_PHY_MODE_2) & ~0xf, SATA1_PHY_MODE_2);
-		writel(readl(SATA1_IF_CTRL) | 0x200, SATA1_IF_CTRL);
-	}
-	
-	if (!(kirkwood_clk_ctrl & CGC_PEX0)) {
-		writel(readl(PCIE_LINK_CTRL) | 0x10, PCIE_LINK_CTRL);
-		while (1)
-			if (readl(PCIE_STATUS) & 0x1)
-				break;
-		writel(readl(PCIE_LINK_CTRL) & ~0x10, PCIE_LINK_CTRL);
-	}
-
-	kirkwood_clk_ctrl |= CGC_PEX1;
-	kirkwood_clk_ctrl |= CGC_RUNIT;
-
-	writel(kirkwood_clk_ctrl, CLOCK_GATING_CTRL());
+	writel(kirkwood_clk_ctrl, clk_gating_ctrl);
 
 	return 0;
 }
 
-void kirkwood_enable_pcie(void)
-{
-	u32 curr = readl(CLOCK_GATING_CTRL());
-	if (!(curr & CGC_PEX0))
-		writel(curr | CGC_PEX0, CLOCK_GATING_CTRL());
-}
-
-int WIN_OFF(int n)
+void __iomem* WIN_OFF(int n)
 {
 	return (BRIDGE_PHYS_BASE() + 0x0000 + ((n) << 4));
 }
@@ -475,7 +368,6 @@ static int __init cpu_win_can_remap(int win)
 {
 	if (win < 4)
 		return 1;
-
 	return 0;
 }
 
@@ -485,11 +377,6 @@ void __init kirkwood_setup_cpu_mbus(void)
 	int i;
 	int cs;
 
-	void __iomem* DDR_WINDOW_CPU_BASE = (DDR_PHYS_BASE() + 0x1500);
-
-	/*
-	 * First, disable and clear windows.
-	 */
 	for (i = 0; i < 8; i++) {
 		addr = (void __iomem *)WIN_OFF(i);
 
@@ -501,21 +388,14 @@ void __init kirkwood_setup_cpu_mbus(void)
 		}
 	}
 
-
 	kirkwood_mbus_dram_info.mbus_dram_target_id = TARGET_DDR;
 
-	
-	addr = (void __iomem *)DDR_WINDOW_CPU_BASE;
+	addr = (ioremap(0xf1000000, 0xffff) + 0x1500);
 
 	for (i = 0, cs = 0; i < 4; i++) {
 		u32 base = readl(addr + DDR_BASE_CS_OFF(i));
 		u32 size = readl(addr + DDR_SIZE_CS_OFF(i));
 
-		printk("base: 0x%x", addr + DDR_BASE_CS_OFF(i));
-
-		/*
-		 * Chip select enabled?
-		 */
 		if (size & 1) {
 			struct mbus_dram_window *w;
 
@@ -538,7 +418,6 @@ static L4X_DEVICE_CB(kirkwood_device_cb_mv643xx)
 	kirkwood_setup_cpu_mbus();
 	kirkwood_ge00_init(&sheevaplug_ge00_data);
 
-	kirkwood_enable_pcie();
 	kirkwood_clock_gate();
 }
 

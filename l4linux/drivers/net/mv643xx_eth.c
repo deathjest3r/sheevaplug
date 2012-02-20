@@ -1080,7 +1080,7 @@ static irqreturn_t mv643xx_eth_err_irq(int irq, void *dev_id)
 	if (readl(msp->base + ERR_INT_CAUSE) & ERR_INT_SMI_DONE) {
 		writel(~ERR_INT_SMI_DONE, msp->base + ERR_INT_CAUSE);
 		wake_up(&msp->smi_busy_wait);
-		return IRQ_HANDLED;
+    	return IRQ_HANDLED;
 	}
 
 	return IRQ_NONE;
