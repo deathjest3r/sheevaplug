@@ -1080,7 +1080,6 @@ static irqreturn_t mv643xx_eth_err_irq(int irq, void *dev_id)
 	if (readl(msp->base + ERR_INT_CAUSE) & ERR_INT_SMI_DONE) {
 		writel(~ERR_INT_SMI_DONE, msp->base + ERR_INT_CAUSE);
 		wake_up(&msp->smi_busy_wait);
-	    printk("IRQ_HANDLED in the error routin\n");
     	return IRQ_HANDLED;
 	}
 
@@ -2052,10 +2051,8 @@ static irqreturn_t mv643xx_eth_irq(int irq, void *dev_id)
 	struct net_device *dev = (struct net_device *)dev_id;
 	struct mv643xx_eth_private *mp = netdev_priv(dev);
 
-	if (unlikely(!mv643xx_eth_collect_events(mp))) {
-        printk("IRQ_NONE returned\n");
+	if (unlikely(!mv643xx_eth_collect_events(mp)))
 		return IRQ_NONE;
-    }
 
 	wrlp(mp, INT_MASK, 0);
 	napi_schedule(&mp->napi);
