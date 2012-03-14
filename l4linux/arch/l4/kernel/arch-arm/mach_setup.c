@@ -33,7 +33,6 @@
 #define WIN_REMAP_LO_OFF        0x0008
 #define WIN_REMAP_HI_OFF        0x000c
 
-
 static int dev_init_done;
 
 static LIST_HEAD(platform_callbacks_head);

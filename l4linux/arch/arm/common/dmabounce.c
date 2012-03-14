@@ -481,7 +481,7 @@ int dmabounce_register_dev(struct device *dev, unsigned long small_buffer_size,
 			small_buffer_size);
 		goto err_free;
 	}
-		
+
 	if (large_buffer_size) {
 		ret = dmabounce_init_pool(&device_info->large, dev,
 					  "large_dmabounce_pool",
