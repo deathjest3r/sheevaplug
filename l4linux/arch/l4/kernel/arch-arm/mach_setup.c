@@ -263,8 +263,8 @@ static __init void ge_complete(
 	platform_device_register(orion_ge_shared);
 	platform_device_register(orion_ge);
 	
-	dmabounce_register_dev(&orion_ge->dev, 64, 4096);
-	dmabounce_register_dev(&orion_ge_shared->dev, 64, 4096);
+	dmabounce_register_dev(&orion_ge->dev, 1024, 4096);
+	dmabounce_register_dev(&orion_ge_shared->dev, 1024, 4096);
 }
 
 struct mv643xx_eth_shared_platform_data orion_ge00_shared_data;
