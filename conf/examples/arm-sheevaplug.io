@@ -13,7 +13,7 @@ hw-root
   DMA => new Device()
   {
     .hid = "dmamem";
-    new-res Mmio_ram(2097152,0);
+    new-res Mmio_ram(8388608,0);
   }
 }
 
